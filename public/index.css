@@ -1,0 +1,97 @@
+#root {
+    height: 100%;
+    background-color:#fbf4e1;
+    font-family: Roboto Arial;
+}
+
+.ui.header {
+    color: #9b111e;
+}
+
+.container {
+    height: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.outer-row {
+    margin: 20px 0px 20px 0px;
+    padding: 20px 0px 20px 0px;
+}
+
+.inner-container {
+    width: 80%;
+}
+
+.ui.header {
+    text-align: center;
+}
+
+.sessions-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.session {
+    padding: 0px 40px 0px 40px;
+    margin: 0px 20px 0px 20px;
+}
+
+.session-display-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+
+.session-item {
+    flex-grow: 1;
+    margin: 0px 15px 0px 15px;
+}
+
+.session-display {
+    text-align: center;
+    font-size: 2em;
+}
+
+i {
+    cursor: pointer;
+}
+
+.display-container {
+    text-align: center;
+    background-color: black;
+    padding: 20px 5px;
+}
+
+.outer-display-container {
+    margin: 0 auto;
+    width: 30%;
+    border: 2px solid black;
+    border-radius: 5px;
+    box-shadow: 5px 10px #9b111e;
+}
+
+.display {
+    font-size: 2em;
+}
+
+.critical {
+    color: #9b111e;
+}
+
+.controls {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.controls i {
+    margin: 10px 0px 10px 0px;
+    padding: 10px 0px 10px 0px;
+}

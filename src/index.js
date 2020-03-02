@@ -5,6 +5,22 @@ import ReactDOM from 'react-dom';
 import _ from 'lodash';
 
 
+function padLeft(n, char='0') {
+  if (n < 10) {
+    return '0' + n;
+  }
+  return n;
+}
+
+
+function renderDuration(milliseconds) {
+  let seconds = Math.abs(Math.round(milliseconds / 1000));
+  let minutes = Math.floor(seconds / 60);
+  seconds %= 60;
+  return `${padLeft(minutes)}:${padLeft(seconds)}`;
+}
+
+
 const makeTimer = (config={}) => {
   return {
     name: "Timer",
@@ -17,6 +33,13 @@ const makeTimer = (config={}) => {
 }
 
 
+const resetTimer = (timer) => {
+  const empty = _.cloneDeep(timer);
+  empty.elapsed = 0;
+  return empty;
+}
+
+
 const initialState = () => {
   return {
     pomodoro: {
@@ -24,8 +47,8 @@ const initialState = () => {
       activeTimer: 0,
       // All times in milliseconds
       timers: [
-        makeTimer({name: "Work", initial: 5000}),
-        makeTimer({name: "Break", initial: 5000}),
+        makeTimer({name: "Session", initial: 25 * 60 * 1000}),
+        makeTimer({name: "Break", initial: 5 * 60 * 1000}),
       ]
     }
   };
@@ -60,7 +83,7 @@ const toggleTimer = (old, callback) => {
     clearInterval(next.updateHandle);
     next.updateHandle = 0;
   } else {
-    next.updateHandle = setInterval(callback, 100);
+    next.updateHandle = setInterval(callback, 900);
   }
   return next;
 }
@@ -79,19 +102,37 @@ const switchTimers = (old) => {
 
 
 const resetTimers = (old, stop=false) => {
-  if (!old) {
+  if (!old) return initialState().pomodoro;
+  if (stop) {
+    clearInterval(old.updateHandle);
     return initialState().pomodoro;
   }
   const next = _.cloneDeep(old);
-  next.timers = initialState().pomodoro.timers;
-  if (stop) {
-    next.activeTimer = 0;
-    clearInterval(next.updateHandle);
-    next.updateHandle = 0;
-  }
+  next.timers = old.timers.map(resetTimer);
   next.timers.forEach((timer, i) => {
-    timer.active = !stop && old.timers[i].active;
+    timer.active = !stop && timer.active;
   });
+  return next;
+}
+
+
+const incrementTimer = (old, idx) => {
+  return nudgeTimer(old, idx, 60 * 1000);
+}
+
+const decrementTimer = (old, idx) => {
+  return nudgeTimer(old, idx, -60 * 1000);
+}
+
+const nudgeTimer = (old, idx, x) => {
+  if (!old) {
+    return initialState().pomodoro;
+  }
+  if (old.timers[idx].active) {
+    return old;
+  }
+  const next = _.cloneDeep(old);
+  next.timers[idx].initial = Math.max(0, next.timers[idx].initial + x);
   return next;
 }
 
@@ -101,6 +142,10 @@ const reducers = combineReducers({
     console.log(old, action);
     if (!old) return resetTimers(old);
     switch (action.type) {
+      case 'INCREMENT':
+        return incrementTimer(old, action.payload);
+      case 'DECREMENT':
+        return decrementTimer(old, action.payload);
       case 'RESET':
         return resetTimers(old, true);
       case 'TICK':
@@ -120,69 +165,199 @@ const reducers = combineReducers({
 
 
 const actions = {
-  next: () => { return { type: 'NEXT' }; },
   reset: () => { return { type: 'RESET' }; },
-  switch: id => { return { type: 'SWITCH', payload: id }; },
-  toggle: (callback) => { return { type: 'TOGGLE', payload: callback }; },
   tick: () => { return { type: 'TICK' }; },
-}
-
-
-class App extends Component {
-
-  renderTimer(timer) {
-    return (
-      timer.name + ': ' +
-      this.renderDuration(timer.initial - timer.elapsed, false)
-    );
-  }
-
-  renderDuration(milliseconds, negativeOK=true) {
-    let sign = milliseconds < 0 ? '-' : '';
-    if (sign && !negativeOK) return '0s';
-    let seconds = Math.abs(Math.round(milliseconds / 1000));
-    let display = sign + seconds + 's';
-    let minutes = Math.floor(seconds / 60);
-    seconds %= 60;
-    if (minutes) display = sign + minutes + 'm ' + display;
-    let hours = Math.floor(minutes / 60);
-    minutes %= 60;
-    if (hours) display = sign + hours + 'h ' + display;
-    return display;
-  }
-
-  render() {
-    if (!this.props.pomodoro) return;
-    const timers = this.props.pomodoro.timers;
-    const toggle = () => this.props.toggle(this.props.tick);
-    return (
-      <div>
-        { this.props.pomodoro.activeTimer }
-        <p/>
-        <button onClick={toggle}>
-          Start / Pause
-        </button>
-        <button onClick={() => this.props.reset()}>
-          Reset
-        </button>
-        <p/>
-        { this.renderTimer(timers[0]) }
-        <p/>
-        { Date(timers[0].last_press).toString() }
-        <p/>
-        <p/>
-        { this.renderTimer(timers[1]) }
-        <p/>
-        { Date(timers[1].last_press).toString() }
-      </div>
-    );
-  }
+  toggle: (callback) => { return { type: 'TOGGLE', payload: callback }; },
+  increment: idx => { return { type: 'INCREMENT', payload: idx }; },
+  decrement: idx => { return { type: 'DECREMENT', payload: idx }; },
 }
 
 
 const mapStateToProps = (state) => {
   return state
 };
+
+
+// Play Pause Reset buttons
+const Controls = (props) => {
+  const { reset, tick, toggle } = props;
+
+  const handleClick = (event) => {
+    switch (event.target.id) {
+      case 'start_stop':
+      case 'pause':
+        toggle(tick);
+        break;
+      case 'reset':
+        reset();
+        break;
+      default:
+        console.log('unknown target: ', event.target);
+    }
+  }
+
+  // const myAudio = useRef();
+  // const playBeep = () => {
+    // if (myAudio.current !== null) {
+      // myAudio.current.play()
+    // }
+  // }
+
+  return (
+    <div>
+      <div className="controls">
+        <i
+          id="start_stop"
+          className="big play circle outline icon"
+          onClick={handleClick}
+        ></i>
+        <i
+          id="pause"
+          className="big pause circle outline icon"
+          onClick={handleClick}
+        ></i>
+        <i
+          id="reset"
+          className="big redo icon"
+          onClick={handleClick}
+        ></i>
+      </div>
+      <div>
+        <audio
+          id="beep"
+          type="audio"
+          src="https://goo.gl/65cBl1"
+          // ref={myAudio}
+        />
+      </div>
+    </div>
+  )
+}
+
+const WrappedControls = connect(
+    mapStateToProps,
+    actions
+)(Controls);
+
+// DISPLAY COMPONENT
+const Display = (props) => {
+
+  const display = renderDuration(props.timer.initial - props.timer.elapsed);
+  return(
+    <div className="outer-display-container">
+      <div className="display-container">
+        <h3
+          id="timer-label"
+          className="ui header">
+          { props.timer.name }
+        </h3>
+        <div
+          id="time-left"
+          className="display">
+          { display }
+        </div>
+        <WrappedControls />
+      </div>
+    </div>
+  )
+}
+
+const mapDisplayToProps = (state) => {
+  const timer = state.pomodoro.timers[state.pomodoro.activeTimer];
+  return { timer };
+}
+
+const WrappedDisplay = connect(
+    mapDisplayToProps
+)(Display);
+
+// SESSION COMPONENT
+
+const Session = (props) => {
+
+  const display = props.timer.initial / (60 * 1000);
+
+  const increment = (event) => {
+    props.increment(props.idx);
+  }
+
+  const decrement = (event) => {
+    props.decrement(props.idx);
+  }
+
+  return (
+    <div className="session">
+      <h4 id={`${props.title.toLowerCase()}-label`} className="ui large header">{ props.timer.name } Length</h4>
+      <div className="session-display-container">
+        <i
+          id={`${props.title.toLowerCase()}-increment`}
+          className="session-item big arrow alternate circle up outline icon"
+          onClick={ increment }
+        ></i>
+        <div
+          id={`${props.title.toLowerCase()}-length`}
+          className="session-item session-display">
+          { display }
+        </div>
+        <i
+          id={`${props.title.toLowerCase()}-decrement`}
+          className="session-item big arrow alternate circle down outline icon"
+          onClick={ decrement }
+        ></i>
+      </div>
+    </div>
+  )
+}
+
+const mapSessionToProps = (state, ownProps) => {
+  return {
+    timer: state.pomodoro.timers[ownProps.idx],
+  }
+}
+
+const WorkSession = connect(
+  mapSessionToProps,
+  actions,
+)(Session);
+
+const BreakSession = connect(
+  mapSessionToProps,
+  actions,
+)(Session);
+
+
+// SESSIONLIST COMPONENT
+const SessionList = (props) => {
+    return (
+        <div className="sessions-container">
+            <WorkSession title="Session" idx={0} />
+            <BreakSession title="Break" idx={1} />
+        </div>
+    )
+}
+
+const WrappedSessionList = connect()(SessionList);
+
+class App extends Component {
+
+  render() {
+    return (
+      <div className="container">
+        <div className="inner-container ui teal inverted segment">
+          <div className="outer-row">
+            <h1 className="ui centered huge header">Pomodoro</h1>
+          </div>
+          <div className="outer-row">
+            <WrappedSessionList />
+          </div>
+          <div className="outer-row">
+            <WrappedDisplay />
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
 
 
 const Wrapp = connect(
@@ -194,7 +369,7 @@ const Wrapp = connect(
 const store = createStore(
   reducers,
   initialState(),
-  window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__()
+  // window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__()
 );
 
 
